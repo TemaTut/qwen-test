@@ -1,0 +1,8 @@
+services:
+  app:
+    image: leonidsliusar/ai_generators:latest
+    hostname: ai_generators
+    volumes:
+      - /workspace/models:/app/models
+    ports:
+      - "8000:8000"
