@@ -16,7 +16,7 @@ def main() -> None:
 
     Порт берём из переменной окружения PORT (по умолчанию 8000).
     """
-    port = int(os.getenv("PORT", "8000"))
+    port = int(os.getenv("PORT", "8888"))
 
     try:
         uvicorn.run(app=app, host="0.0.0.0", port=port)
