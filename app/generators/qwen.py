@@ -6,35 +6,48 @@ from uuid import UUID
 
 import torch
 from PIL import Image
-from diffusers import DiffusionPipeline
+from diffusers import QwenImageEditPlusPipeline
+from nunchaku import NunchakuQwenImageTransformer2DModel
 
 
-# Путь к модели и тип тензоров
-CACHE_PATH = (
+# Локальный путь к базовой модели (как у тебя уже скачано)
+BASE_MODEL_PATH = (
     Path(__file__).parent.parent.parent / "models" / "Qwen" / "Qwen-Image-Edit-2509"
 )
-TORCH_DTYPE = torch.bfloat16  # 16 бит, как и было
+
+# ID квантованного трансформера на Hugging Face
+NUNCHAKU_MODEL_ID = "nunchaku-tech/nunchaku-qwen-image-edit-2509"
+
+# 4-битная модель, rank 32 (можно поднять до 128 для качества)
+NUNCHAKU_RANK = 32
+
+TORCH_DTYPE = torch.bfloat16  # 16-бит, как и было
 
 
-# Глобальный пайплайн (инициализируется один раз)
-_PIPELINE: DiffusionPipeline | None = None
+# Глобальный пайплайн (инициализируем один раз)
+_PIPELINE: QwenImageEditPlusPipeline | None = None
 
 
-def get_pipeline() -> DiffusionPipeline:
+def get_pipeline() -> QwenImageEditPlusPipeline:
     global _PIPELINE
 
     if _PIPELINE is None:
-        # Загружаем модель один раз
-        _PIPELINE = DiffusionPipeline.from_pretrained(
-            str(CACHE_PATH),
-            torch_dtype=TORCH_DTYPE,  # в новых версиях можно будет поменять на dtype=...
+        # 1. грузим 4-битный квантованный трансформер из репо Nunchaku
+        transformer = NunchakuQwenImageTransformer2DModel.from_pretrained(
+            f"{NUNCHAKU_MODEL_ID}/svdq-int4_r{NUNCHAKU_RANK}-qwen-image-edit-2509.safetensors"
         )
 
-        # Никакого .to("cuda") здесь — вместо этого offload
-        # Модель будет лежать в RAM и по слоям ездить на GPU
-        _PIPELINE.enable_model_cpu_offload()
+        # 2. создаём QwenImageEditPlusPipeline, подсовывая свой transformer
+        _PIPELINE = QwenImageEditPlusPipeline.from_pretrained(
+            str(BASE_MODEL_PATH),
+            transformer=transformer,
+            torch_dtype=TORCH_DTYPE,
+        )
 
-        # Прогрессбар оставим включённым
+        # 3. Гоним всё на GPU.
+        # Квантизованный UNet нормально влазит в 48 ГБ VRAM,
+        # так что CPU offload нам больше НЕ нужен.
+        _PIPELINE.to("cuda")
         _PIPELINE.set_progress_bar_config(disable=None)
 
     return _PIPELINE
@@ -46,8 +59,14 @@ def generate_image(
     image_2: bytes | None = None,
     prompt: str = "",
     negative: str = "",
-    num_inference_steps: int = 15,
+    num_inference_steps: int = 8,
 ) -> None:
+    """
+    Редактируем изображение через Qwen-Image-Edit-2509 (4-битная версия).
+
+    По умолчанию делаю 8 шагов — для lightning/квантизованных
+    моделей это норм. Если хочешь, можешь поднять до 12–15.
+    """
     pipeline = get_pipeline()
 
     images = [Image.open(BytesIO(image_1)).convert("RGB")]
