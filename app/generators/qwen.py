@@ -13,7 +13,8 @@ from diffusers import DiffusionPipeline
 CACHE_PATH = (
     Path(__file__).parent.parent.parent / "models" / "Qwen" / "Qwen-Image-Edit-2509"
 )
-TORCH_DTYPE = torch.bfloat16
+TORCH_DTYPE = torch.bfloat16  # 16 бит, как и было
+
 
 # Глобальный пайплайн (инициализируется один раз)
 _PIPELINE: DiffusionPipeline | None = None
@@ -23,12 +24,17 @@ def get_pipeline() -> DiffusionPipeline:
     global _PIPELINE
 
     if _PIPELINE is None:
+        # Загружаем модель один раз
         _PIPELINE = DiffusionPipeline.from_pretrained(
             str(CACHE_PATH),
-            torch_dtype=TORCH_DTYPE,
+            torch_dtype=TORCH_DTYPE,  # в новых версиях можно будет поменять на dtype=...
         )
-        # Гоним всё на GPU, без CPU offload
-        _PIPELINE.to("cuda")
+
+        # Никакого .to("cuda") здесь — вместо этого offload
+        # Модель будет лежать в RAM и по слоям ездить на GPU
+        _PIPELINE.enable_model_cpu_offload()
+
+        # Прогрессбар оставим включённым
         _PIPELINE.set_progress_bar_config(disable=None)
 
     return _PIPELINE
