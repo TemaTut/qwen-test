@@ -1,42 +1,67 @@
+from __future__ import annotations
+
 from io import BytesIO
 from pathlib import Path
 from uuid import UUID
+
 import torch
 from PIL import Image
 from diffusers import DiffusionPipeline
 
 
+# Путь к модели и тип тензоров
+CACHE_PATH = (
+    Path(__file__).parent.parent.parent / "models" / "Qwen" / "Qwen-Image-Edit-2509"
+)
+TORCH_DTYPE = torch.bfloat16
+
+# Глобальный пайплайн (инициализируется один раз)
+_PIPELINE: DiffusionPipeline | None = None
+
+
+def get_pipeline() -> DiffusionPipeline:
+    global _PIPELINE
+
+    if _PIPELINE is None:
+        _PIPELINE = DiffusionPipeline.from_pretrained(
+            str(CACHE_PATH),
+            torch_dtype=TORCH_DTYPE,
+        )
+        # Гоним всё на GPU, без CPU offload
+        _PIPELINE.to("cuda")
+        _PIPELINE.set_progress_bar_config(disable=None)
+
+    return _PIPELINE
+
 
 def generate_image(
-        task_id: UUID,
-        image_1: bytes,
-        image_2: bytes | None = None,
-        prompt: str = "",
-        negative: str = "",
-        num_inference_steps: int = 30,
-):
-    cache_path = Path(__file__).parent.parent.parent / "models"
-    torch_dtype = torch.bfloat16
+    task_id: UUID,
+    image_1: bytes,
+    image_2: bytes | None = None,
+    prompt: str = "",
+    negative: str = "",
+    num_inference_steps: int = 15,
+) -> None:
+    pipeline = get_pipeline()
 
-    pipe = DiffusionPipeline.from_pretrained(
-        str(cache_path / "Qwen/Qwen-Image-Edit-2509"),
-        torch_dtype=torch_dtype,
-    )
-    pipe.enable_model_cpu_offload()
-    pipe.set_progress_bar_config(disable=None)
     images = [Image.open(BytesIO(image_1)).convert("RGB")]
-    if image_2:
+    if image_2 is not None:
         images.append(Image.open(BytesIO(image_2)).convert("RGB"))
+
     inputs = {
         "image": images,
         "prompt": prompt,
-        "generator": torch.manual_seed(0),
         "negative_prompt": negative,
         "num_inference_steps": num_inference_steps,
         "num_images_per_prompt": 1,
+        "generator": torch.manual_seed(0),
     }
+
     with torch.inference_mode():
-        output = pipe(**inputs)
+        output = pipeline(**inputs)
         image = output.images[0]
-        save_path = Path(__file__).parent.parent.parent / "output" / f"{task_id}.png"
-        image.save(save_path)
+
+    save_dir = Path(__file__).parent.parent.parent / "output"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    save_path = save_dir / f"{task_id}.png"
+    image.save(save_path)
