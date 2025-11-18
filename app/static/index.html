@@ -28,12 +28,20 @@
       margin-top: 20px;
       padding: 10px 20px;
       font-size: 16px;
+      cursor: pointer;
     }
 
     img {
       max-width: 100%;
       margin-top: 20px;
       border: 1px solid #ccc;
+    }
+
+    #taskBox,
+    #resultSection {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
     }
   </style>
 </head>
@@ -61,18 +69,41 @@
     <button type="submit">Generate</button>
   </form>
 
-  <div id="status"></div>
-  <img id="result" style="display:none;">
+
+  <!-- блок для task_id -->
+  <div id="taskBox" style="display:none;">
+    <h3>Task Created</h3>
+    <p><b>task_id:</b> <span id="taskIdText"></span></p>
+    <button id="getFileBtn">Get Result</button>
+  </div>
+
+  <!-- секция результата -->
+  <div id="resultSection" style="display:none;">
+    <h3>Result</h3>
+    <div id="resultText"></div>
+    <img id="resultImg" style="display:none;">
+  </div>
+
 
   <script>
     const form = document.getElementById('form');
-    const statusDiv = document.getElementById('status');
-    const resultImg = document.getElementById('result');
+    const taskBox = document.getElementById('taskBox');
+    const taskIdText = document.getElementById('taskIdText');
+    const getFileBtn = document.getElementById('getFileBtn');
 
+    const resultSection = document.getElementById('resultSection');
+    const resultText = document.getElementById('resultText');
+    const resultImg = document.getElementById('resultImg');
+
+    let currentTaskId = null;
+
+    // ---------- POST /qwen/generate ----------
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      statusDiv.innerHTML = "Uploading...";
+
+      resultSection.style.display = "none";
       resultImg.style.display = "none";
+      resultText.innerHTML = "";
 
       const formData = new FormData(form);
 
@@ -82,29 +113,49 @@
       });
 
       const data = await res.json();
+
       if (!data.task_id) {
-        statusDiv.innerHTML = "Error: " + JSON.stringify(data);
+        alert("Error: " + JSON.stringify(data));
         return;
       }
 
-      statusDiv.innerHTML = "Task created: " + data.task_id + "<br>Generating...";
+      currentTaskId = data.task_id;
+      taskIdText.innerText = currentTaskId;
+      taskBox.style.display = "block";
+    });
 
-      const fileUrl = '/qwen/get_file?task_id=' + data.task_id;
 
-      // wait a bit (backend may need time)
-      setTimeout(async () => {
-        const imgRes = await fetch(fileUrl);
-        if (imgRes.status !== 200) {
-          statusDiv.innerHTML = "Still generating... try manually: " + fileUrl;
-          return;
-        }
+    // ---------- GET /qwen/get_file ----------
+    getFileBtn.addEventListener('click', async () => {
+      if (!currentTaskId) return;
 
-        const blob = await imgRes.blob();
+      resultSection.style.display = "block";
+      resultText.innerHTML = "Requesting file...";
+
+      const url = `/qwen/get_file?task_id=${currentTaskId}`;
+
+      const res = await fetch(url);
+
+      if (!res.ok) {
+        resultText.innerHTML = "Error: HTTP " + res.status;
+        resultImg.style.display = "none";
+        return;
+      }
+
+      const contentType = res.headers.get("content-type");
+
+      if (contentType && contentType.includes("image")) {
+        const blob = await res.blob();
         resultImg.src = URL.createObjectURL(blob);
         resultImg.style.display = "block";
-        statusDiv.innerHTML = "Done!";
-      }, 3000);
+        resultText.innerHTML = "";
+      } else {
+        const text = await res.text();
+        resultText.innerText = text;
+        resultImg.style.display = "none";
+      }
     });
+
   </script>
 
 </body>
