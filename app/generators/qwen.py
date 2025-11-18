@@ -16,21 +16,18 @@ def generate_image(
 ):
     cache_path = Path(__file__).parent.parent.parent / "models"
 
-    # 🟢 КОРРЕКТНАЯ ЗАГРУЗКА — РАБОТАЕТ НА A6000 (48GB)
+    # ✔ Balanced Offload — работает на A6000
     pipe = DiffusionPipeline.from_pretrained(
         str(cache_path / "Qwen/Qwen-Image-Edit-2509"),
-        torch_dtype=torch.float16,  # экономный формат
-        device_map="auto",  # автоматический offload
+        torch_dtype=torch.float16,
+        device_map="balanced",
     )
 
-    # memory-efficient attention (экономия VRAM)
+    # экономный attention
     pipe.enable_xformers_memory_efficient_attention()
-
-    # НЕ НУЖНО pipe.to("cuda") — device_map="auto" сам распределит модель
 
     pipe.set_progress_bar_config(disable=None)
 
-    # 🖼️ preprocessing
     images = [Image.open(BytesIO(image_1)).convert("RGB")]
     if image_2:
         images.append(Image.open(BytesIO(image_2)).convert("RGB"))
@@ -44,10 +41,9 @@ def generate_image(
         "num_images_per_prompt": 1,
     }
 
-    # 🔥 Генерация (safe offload)
     with torch.inference_mode():
         output = pipe(**inputs)
-
         image = output.images[0]
+
         save_path = Path(__file__).parent.parent.parent / "output" / f"{task_id}.png"
         image.save(save_path)
