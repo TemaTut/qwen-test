@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Qwen Online UI</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+    }
+
+    label {
+      display: block;
+      margin-top: 20px;
+      font-weight: bold;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 8px;
+      margin-top: 6px;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+
+    img {
+      max-width: 100%;
+      margin-top: 20px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>Qwen Image Generator</h2>
+
+  <form id="form">
+    <label>Prompt</label>
+    <textarea name="prompt" rows="2" required></textarea>
+
+    <label>Negative Prompt</label>
+    <textarea name="negative" rows="2"></textarea>
+
+    <label>Inference steps</label>
+    <input type="number" name="num_inference_steps" value="30">
+
+    <label>Main photo (photo_1)</label>
+    <input type="file" name="photo_1" required>
+
+    <label>Optional second photo (photo_2)</label>
+    <input type="file" name="photo_2">
+
+    <button type="submit">Generate</button>
+  </form>
+
+  <div id="status"></div>
+  <img id="result" style="display:none;">
+
+  <script>
+    const form = document.getElementById('form');
+    const statusDiv = document.getElementById('status');
+    const resultImg = document.getElementById('result');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      statusDiv.innerHTML = "Uploading...";
+      resultImg.style.display = "none";
+
+      const formData = new FormData(form);
+
+      const res = await fetch('/qwen/generate', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!data.task_id) {
+        statusDiv.innerHTML = "Error: " + JSON.stringify(data);
+        return;
+      }
+
+      statusDiv.innerHTML = "Task created: " + data.task_id + "<br>Generating...";
+
+      const fileUrl = '/qwen/get_file?task_id=' + data.task_id;
+
+      // wait a bit (backend may need time)
+      setTimeout(async () => {
+        const imgRes = await fetch(fileUrl);
+        if (imgRes.status !== 200) {
+          statusDiv.innerHTML = "Still generating... try manually: " + fileUrl;
+          return;
+        }
+
+        const blob = await imgRes.blob();
+        resultImg.src = URL.createObjectURL(blob);
+        resultImg.style.display = "block";
+        statusDiv.innerHTML = "Done!";
+      }, 3000);
+    });
+  </script>
+
+</body>
+
+</html>
