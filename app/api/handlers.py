@@ -12,16 +12,20 @@ router = APIRouter(prefix="/qwen", tags=["QWEN"])
 
 @router.post("/generate")
 async def generate(
-        background_task: BackgroundTasks,
-        prompt: str = Form(...),
-        negative: str = Form(" "),
-        num_inference_steps: int = Form(30),
-        photo_1: UploadFile = File(...),
-        photo_2: UploadFile | None = File(None),
+    background_task: BackgroundTasks,
+    prompt: str = Form(...),
+    negative: str = Form(" "),
+    num_inference_steps: int = Form(30),
+    seed: int = Form(0),
+    true_cfg_scale: float = Form(4.0),
+    guidance_scale: float = Form(1.0),
+    photo_1: UploadFile = File(...),
+    photo_2: UploadFile | None = File(None),
 ):
     task_id = uuid.uuid4()
     image_1 = await photo_1.read()
     image_2 = await photo_2.read() if photo_2 else None
+
     background_task.add_task(
         generate_image,
         task_id,
@@ -30,7 +34,11 @@ async def generate(
         prompt,
         negative,
         num_inference_steps,
+        seed,
+        true_cfg_scale,
+        guidance_scale,
     )
+
     return {"task_id": task_id}
 
 

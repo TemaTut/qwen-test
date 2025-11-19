@@ -43,6 +43,13 @@
       padding: 10px;
       border: 1px solid #ddd;
     }
+
+    .hint {
+      font-size: 12px;
+      color: #555;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
   </style>
 </head>
 
@@ -53,18 +60,55 @@
   <form id="form">
     <label>Prompt</label>
     <textarea name="prompt" rows="2" required></textarea>
+    <div class="hint">
+      Описание того, что нужно получить на изображении: сцена, стиль, одежда, окружение и т.п.
+    </div>
 
     <label>Negative Prompt</label>
     <textarea name="negative" rows="2"></textarea>
+    <div class="hint">
+      Что <b>не</b> должно появиться на картинке: артефакты, лишние объекты, стили, ошибки анатомии и т.п.
+    </div>
 
     <label>Inference steps</label>
-    <input type="number" name="num_inference_steps" value="30">
+    <input type="number" name="num_inference_steps" value="30" min="1">
+    <div class="hint">
+      Количество шагов диффузии. Больше шагов — обычно лучше качество и детализация, но дольше время генерации.
+    </div>
+
+    <label>Seed</label>
+    <input type="number" name="seed" value="0">
+    <div class="hint">
+      Зерно случайности. Один и тот же seed + одинаковые настройки дают похожий результат.
+      Если поставить 0 и менять seed — можно получать разные варианты.
+    </div>
+
+    <label>True CFG scale (true_cfg_scale)</label>
+    <input type="number" name="true_cfg_scale" value="4.0" step="0.1">
+    <div class="hint">
+      Насколько сильно модель следует текстовому описанию, сохраняя при этом исходное фото.
+      Меньше значение — более мягкие и аккуратные изменения, больше — сильнее меняется картинка.
+    </div>
+
+    <label>Guidance scale</label>
+    <input type="number" name="guidance_scale" value="1.0" step="0.1">
+    <div class="hint">
+      Дополнительное усиление влияния промпта. При увеличении модель сильнее подстраивается под текст,
+      но слишком большие значения могут ухудшать качество или делать картинку неестественной.
+    </div>
 
     <label>Main photo (photo_1)</label>
     <input type="file" name="photo_1" required>
+    <div class="hint">
+      Основное исходное фото. Лицо должно быть хорошо видно, именно его модель будет стараться сохранить.
+    </div>
 
     <label>Optional second photo (photo_2)</label>
     <input type="file" name="photo_2">
+    <div class="hint">
+      Необязательное второе изображение (например, дополнительный референс или маска).
+      Если не нужно — оставь пустым.
+    </div>
 
     <button type="submit">Generate</button>
   </form>

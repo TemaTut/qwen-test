@@ -13,12 +13,11 @@ from diffusers import DiffusionPipeline
 # Корень проекта: /qwen-test
 ROOT_DIR = Path(__file__).parent.parent.parent
 
-# Путь к модели и к выходной папке (как было в старом коде)
+# Путь к модели и к выходной папке
 MODEL_DIR = ROOT_DIR / "models" / "Qwen" / "Qwen-Image-Edit-2509"
 OUTPUT_DIR = ROOT_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# dtype как в твоём исходном коде
 TORCH_DTYPE = torch.bfloat16
 
 # Глобальный пайплайн и лок для потокобезопасности
@@ -46,8 +45,6 @@ def _get_pipeline() -> DiffusionPipeline:
             str(MODEL_DIR),
             torch_dtype=TORCH_DTYPE,
         )
-        # CPU offload оставляем, но только один раз при старте,
-        # а не на каждый запрос.
         pipe.enable_model_cpu_offload()
         pipe.set_progress_bar_config(disable=None)
 
@@ -62,14 +59,19 @@ def generate_image(
     prompt: str = "",
     negative: str = "",
     num_inference_steps: int = 30,
+    seed: int = 0,
+    true_cfg_scale: float = 4.0,
+    guidance_scale: float = 1.0,
 ) -> None:
     """
     Основная функция генерации.
 
-    Исправления:
-    - НЕ создаёт пайплайн заново, а берёт готовый из _get_pipeline();
-    - вызов пайплайна защищён локом (_pipe_lock), чтобы не было гонок при параллельных запросах;
-    - после генерации подчистка временных объектов и кэша.
+    Параметры:
+    - prompt, negative
+    - num_inference_steps
+    - seed
+    - true_cfg_scale
+    - guidance_scale
     """
     pipe = _get_pipeline()
 
@@ -78,12 +80,16 @@ def generate_image(
     if image_2:
         images.append(Image.open(BytesIO(image_2)).convert("RGB"))
 
+    generator = torch.manual_seed(seed)
+
     inputs = {
         "image": images,
         "prompt": prompt,
-        "generator": torch.manual_seed(0),
+        "generator": generator,
+        "true_cfg_scale": true_cfg_scale,
         "negative_prompt": negative,
         "num_inference_steps": num_inference_steps,
+        "guidance_scale": guidance_scale,
         "num_images_per_prompt": 1,
     }
 
