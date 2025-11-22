@@ -45,6 +45,12 @@ def _get_pipeline() -> DiffusionPipeline:
             str(MODEL_DIR),
             torch_dtype=TORCH_DTYPE,
         )
+
+        pipe.load_lora_weights(
+            "Alissonerdx/BFS-Best-Face-Swap",
+            weight_name="bfs_head_v3_qwen_image_edit_2509.safetensors",
+        )
+
         pipe.enable_model_cpu_offload()
         pipe.set_progress_bar_config(disable=None)
 
