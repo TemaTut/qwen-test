@@ -18,7 +18,8 @@
     }
 
     input,
-    textarea {
+    textarea,
+    select {
       width: 100%;
       padding: 8px;
       margin-top: 6px;
@@ -55,9 +56,19 @@
 
 <body>
 
-  <h2>Qwen Image Generator</h2>
+  <h2>Qwen Image Generator (Edit + Text)</h2>
 
   <form id="form">
+
+    <label>Mode</label>
+    <select id="modeSelect" name="mode">
+      <option value="edit" selected>Qwen Edit (photo + prompt)</option>
+      <option value="text">Qwen Text (prompt only)</option>
+    </select>
+    <div class="hint">
+      Выбери: редактировать исходное фото по промпту или сгенерировать картинку только из текста.
+    </div>
+
     <label>Prompt</label>
     <textarea name="prompt" rows="2" required></textarea>
     <div class="hint">
@@ -80,34 +91,35 @@
     <input type="number" name="seed" value="0">
     <div class="hint">
       Зерно случайности. Один и тот же seed + одинаковые настройки дают похожий результат.
-      Если поставить 0 и менять seed — можно получать разные варианты.
+      Если менять seed — можно получать разные варианты.
     </div>
 
     <label>True CFG scale (true_cfg_scale)</label>
     <input type="number" name="true_cfg_scale" value="4.0" step="0.1">
     <div class="hint">
-      Насколько сильно модель следует текстовому описанию, сохраняя при этом исходное фото.
-      Меньше значение — более мягкие и аккуратные изменения, больше — сильнее меняется картинка.
+      Насколько сильно модель следует текстовому описанию. Меньше значение — более мягкий эффект, больше — сильнее
+      влияние промпта.
     </div>
 
     <label>Guidance scale</label>
     <input type="number" name="guidance_scale" value="1.0" step="0.1">
     <div class="hint">
-      Дополнительное усиление влияния промпта. При увеличении модель сильнее подстраивается под текст,
-      но слишком большие значения могут ухудшать качество или делать картинку неестественной.
+      Дополнительное усиление влияния промпта. Слишком большие значения могут ухудшать качество.
     </div>
 
-    <label>Main photo (photo_1)</label>
-    <input type="file" name="photo_1" required>
-    <div class="hint">
-      Основное исходное фото. Лицо должно быть хорошо видно, именно его модель будет стараться сохранить.
-    </div>
+    <div id="photoFields">
+      <label>Main photo (photo_1)</label>
+      <input type="file" name="photo_1" required>
+      <div class="hint">
+        Основное исходное фото. Лицо должно быть хорошо видно, именно его модель будет стараться сохранить.
+      </div>
 
-    <label>Optional second photo (photo_2)</label>
-    <input type="file" name="photo_2">
-    <div class="hint">
-      Необязательное второе изображение (например, дополнительный референс или маска).
-      Если не нужно — оставь пустым.
+      <label>Optional second photo (photo_2)</label>
+      <input type="file" name="photo_2">
+      <div class="hint">
+        Необязательное второе изображение (например, дополнительный референс или маска).
+        Если не нужно — оставь пустым.
+      </div>
     </div>
 
     <button type="submit">Generate</button>
@@ -139,9 +151,33 @@
     const resultText = document.getElementById('resultText');
     const resultImg = document.getElementById('resultImg');
 
-    let currentTaskId = null;
+    const modeSelect = document.getElementById('modeSelect');
+    const photoFields = document.getElementById('photoFields');
+    const photo1Input = document.querySelector('input[name="photo_1"]');
+    const photo2Input = document.querySelector('input[name="photo_2"]');
 
-    // ---------- POST /qwen/generate ----------
+    let currentTaskId = null;
+    let currentTaskMode = 'edit';
+
+    function updateModeUI() {
+      const mode = modeSelect.value;
+      if (mode === 'edit') {
+        photoFields.style.display = 'block';
+        photo1Input.disabled = false;
+        photo1Input.required = true;
+        photo2Input.disabled = false;
+      } else {
+        photoFields.style.display = 'none';
+        photo1Input.disabled = true;
+        photo1Input.required = false;
+        photo2Input.disabled = true;
+      }
+    }
+
+    modeSelect.addEventListener('change', updateModeUI);
+    updateModeUI();
+
+    // ---------- POST /qwen/generate или /text-qwen/generate ----------
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -150,8 +186,13 @@
       resultText.innerHTML = "";
 
       const formData = new FormData(form);
+      const mode = modeSelect.value;
 
-      const res = await fetch('/qwen/generate', {
+      const url = mode === 'edit'
+        ? '/qwen/generate'
+        : '/text-qwen/generate';
+
+      const res = await fetch(url, {
         method: 'POST',
         body: formData
       });
@@ -164,19 +205,24 @@
       }
 
       currentTaskId = data.task_id;
+      currentTaskMode = mode;
       taskIdText.innerText = currentTaskId;
       taskBox.style.display = "block";
     });
 
 
-    // ---------- GET /qwen/get_file ----------
+    // ---------- GET /qwen/get_file или /text-qwen/get_file ----------
     getFileBtn.addEventListener('click', async () => {
       if (!currentTaskId) return;
 
       resultSection.style.display = "block";
       resultText.innerHTML = "Requesting file...";
 
-      const url = `/qwen/get_file?task_id=${currentTaskId}`;
+      const basePath = currentTaskMode === 'edit'
+        ? '/qwen/get_file'
+        : '/text-qwen/get_file';
+
+      const url = `${basePath}?task_id=${currentTaskId}`;
 
       const res = await fetch(url);
 
