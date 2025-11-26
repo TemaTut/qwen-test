@@ -16,12 +16,49 @@ MODEL_DIR = ROOT_DIR / "models" / "Qwen" / "Qwen-Image"
 OUTPUT_DIR = ROOT_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+# Пути к LoRA
+LORA_DIR = ROOT_DIR / "models" / "Qwen" / "alenexlora"
+LORA_WEIGHT_NAME = "pytorch_lora_weights.safetensors"
+
 TORCH_DTYPE = torch.bfloat16
 
 # Глобальный пайплайн и лок для потокобезопасности
 _pipe_lock = threading.Lock()
 _pipe: DiffusionPipeline | None = None
 
+
+def _get_pipeline() -> DiffusionPipeline:
+    """
+    Ленивая инициализация пайплайна:
+    - модель грузится ОДИН раз при первом обращении;
+    - enable_model_cpu_offload() вызывается один раз;
+    - дальше пайплайн только переиспользуется.
+    """
+    global _pipe
+
+    if _pipe is not None:
+        return _pipe
+
+    with _pipe_lock:
+        if _pipe is not None:
+            return _pipe
+
+        pipe = DiffusionPipeline.from_pretrained(
+            str(MODEL_DIR),
+            torch_dtype=TORCH_DTYPE,
+        )
+
+        # подключаем локальную LoRA
+        pipe.load_lora_weights(
+            str(LORA_DIR),
+            weight_name=LORA_WEIGHT_NAME,
+        )
+
+        pipe.enable_model_cpu_offload()
+        pipe.set_progress_bar_config(disable=None)
+
+        _pipe = pipe
+        return _pipe
 
 def _get_pipeline() -> DiffusionPipeline:
     """
