@@ -1,5 +1,18 @@
+# виртуалки
+.venv/
+venv/
+
+# системные файлы
 .env
-.venv
-output
 .local
 .idea
+
+# папка output (генерация)
+output/
+
+# большие модели — ИГНОРИРУЕМ
+models/Qwen/Qwen-Image-Edit-2509/
+models/Qwen/Qwen-Image/
+
+# разрешаем ЛОРУ (НЕ игнорировать!)
+!models/Qwen/alenexlora/
