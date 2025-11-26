@@ -31,6 +31,7 @@ def _get_pipeline() -> DiffusionPipeline:
     """
     Ленивая инициализация пайплайна:
     - модель грузится ОДИН раз при первом обращении;
+    - подключаем локальную LoRA;
     - enable_model_cpu_offload() вызывается один раз;
     - дальше пайплайн только переиспользуется.
     """
@@ -52,33 +53,6 @@ def _get_pipeline() -> DiffusionPipeline:
         pipe.load_lora_weights(
             str(LORA_DIR),
             weight_name=LORA_WEIGHT_NAME,
-        )
-
-        pipe.enable_model_cpu_offload()
-        pipe.set_progress_bar_config(disable=None)
-
-        _pipe = pipe
-        return _pipe
-
-def _get_pipeline() -> DiffusionPipeline:
-    """
-    Ленивая инициализация пайплайна:
-    - модель грузится ОДИН раз при первом обращении;
-    - enable_model_cpu_offload() вызывается один раз;
-    - дальше пайплайн только переиспользуется.
-    """
-    global _pipe
-
-    if _pipe is not None:
-        return _pipe
-
-    with _pipe_lock:
-        if _pipe is not None:
-            return _pipe
-
-        pipe = DiffusionPipeline.from_pretrained(
-            str(MODEL_DIR),
-            torch_dtype=TORCH_DTYPE,
         )
 
         pipe.enable_model_cpu_offload()
@@ -118,7 +92,7 @@ def generate_image(
                 negative_prompt=negative_prompt,
                 num_inference_steps=num_inference_steps,
                 true_cfg_scale=true_cfg_scale,
-                # guidance_scale у Qwen-Image не обязателен, можем просто не передавать
+                # guidance_scale у Qwen-Image не обязателен, просто принимаем в сигнатуре
                 generator=generator,
                 num_images_per_prompt=1,
             )
